@@ -1,0 +1,997 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Field Planner</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', sans-serif;
+    background: #1a1a2e;
+    color: #fff;
+    height: 100dvh;
+    overflow: hidden;
+  }
+
+  /* ─── MAP ─── */
+  #map {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+  }
+
+  /* ─── TOP BAR ─── */
+  #topbar {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: linear-gradient(to bottom, rgba(0,0,0,.65) 0%, transparent 100%);
+    pointer-events: none;
+  }
+  #topbar > * { pointer-events: auto; }
+
+  .app-logo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .app-logo svg { width: 28px; height: 28px; }
+  .app-title {
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: .05em;
+    color: #fff;
+    text-shadow: 0 1px 4px rgba(0,0,0,.6);
+  }
+
+  #btn-list {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255,255,255,.18);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,.3);
+    border-radius: 20px;
+    padding: 7px 14px;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background .2s;
+  }
+  #btn-list:hover { background: rgba(255,255,255,.28); }
+
+  /* ─── DRAW MODE BANNER ─── */
+  #draw-banner {
+    position: fixed;
+    top: 64px; left: 50%; transform: translateX(-50%);
+    z-index: 100;
+    background: #2563eb;
+    color: #fff;
+    border-radius: 20px;
+    padding: 8px 18px;
+    font-size: 13px;
+    font-weight: 600;
+    box-shadow: 0 4px 16px rgba(37,99,235,.5);
+    display: none;
+    white-space: nowrap;
+    pointer-events: none;
+  }
+  #draw-banner.visible { display: block; }
+
+  /* ─── BOTTOM FAB AREA ─── */
+  #fab-area {
+    position: fixed;
+    bottom: 32px; left: 50%; transform: translateX(-50%);
+    z-index: 100;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    transition: opacity .3s;
+  }
+
+  .fab {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border: none;
+    border-radius: 28px;
+    padding: 14px 24px;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 6px 20px rgba(0,0,0,.35);
+    transition: transform .15s, box-shadow .15s;
+    user-select: none;
+  }
+  .fab:active { transform: scale(.95); }
+
+  #btn-draw {
+    background: #16a34a;
+    color: #fff;
+  }
+  #btn-done {
+    background: #2563eb;
+    color: #fff;
+    display: none;
+  }
+  #btn-cancel {
+    background: rgba(255,255,255,.2);
+    backdrop-filter: blur(8px);
+    color: #fff;
+    border: 1px solid rgba(255,255,255,.3);
+    display: none;
+  }
+
+  /* ─── BOTTOM SHEET (schedule input) ─── */
+  #sheet-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.5);
+    z-index: 200;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .3s;
+  }
+  #sheet-backdrop.visible {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  #input-sheet {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    z-index: 210;
+    background: #fff;
+    border-radius: 20px 20px 0 0;
+    padding: 0 0 env(safe-area-inset-bottom, 16px);
+    transform: translateY(100%);
+    transition: transform .35s cubic-bezier(.32,.72,0,1);
+    max-height: 90dvh;
+    overflow-y: auto;
+  }
+  #input-sheet.visible { transform: translateY(0); }
+
+  .sheet-handle {
+    width: 40px; height: 4px;
+    background: #ddd;
+    border-radius: 2px;
+    margin: 12px auto 0;
+  }
+
+  .sheet-title {
+    font-size: 17px;
+    font-weight: 700;
+    color: #111;
+    text-align: center;
+    padding: 12px 16px 4px;
+  }
+
+  .sheet-body { padding: 12px 20px 24px; }
+
+  /* Category chips */
+  .chip-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #555;
+    margin-bottom: 8px;
+    display: block;
+  }
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .chip {
+    padding: 7px 14px;
+    border-radius: 20px;
+    border: 2px solid transparent;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity .2s, transform .15s;
+    user-select: none;
+  }
+  .chip:active { transform: scale(.95); }
+  .chip.selected { border-color: rgba(0,0,0,.3); box-shadow: 0 2px 8px rgba(0,0,0,.2); }
+
+  /* Form fields */
+  .field { margin-bottom: 14px; }
+  .field label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: #555;
+    margin-bottom: 5px;
+  }
+  .field input, .field textarea {
+    width: 100%;
+    border: 1.5px solid #e0e0e0;
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 15px;
+    color: #111;
+    background: #f8f8f8;
+    outline: none;
+    transition: border-color .2s;
+    font-family: inherit;
+  }
+  .field input:focus, .field textarea:focus {
+    border-color: #2563eb;
+    background: #fff;
+  }
+  .field textarea { resize: none; height: 72px; }
+
+  #btn-save {
+    width: 100%;
+    background: #16a34a;
+    color: #fff;
+    border: none;
+    border-radius: 14px;
+    padding: 15px;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    margin-top: 4px;
+    transition: background .2s;
+  }
+  #btn-save:hover { background: #15803d; }
+
+  /* ─── LIST PANEL ─── */
+  #list-panel {
+    position: fixed;
+    top: 0; right: 0; bottom: 0;
+    width: min(360px, 100vw);
+    background: #f4f6f9;
+    z-index: 300;
+    transform: translateX(100%);
+    transition: transform .35s cubic-bezier(.32,.72,0,1);
+    display: flex;
+    flex-direction: column;
+    box-shadow: -4px 0 24px rgba(0,0,0,.25);
+  }
+  #list-panel.visible { transform: translateX(0); }
+
+  #list-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.4);
+    z-index: 290;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .3s;
+  }
+  #list-backdrop.visible {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 16px 12px;
+    background: #fff;
+    border-bottom: 1px solid #e8eaed;
+    padding-top: calc(env(safe-area-inset-top, 0px) + 16px);
+  }
+  .panel-header h2 {
+    font-size: 18px;
+    font-weight: 700;
+    color: #111;
+  }
+  .panel-close {
+    width: 36px; height: 36px;
+    border: none;
+    background: #f0f0f0;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: #555;
+    font-size: 18px;
+    transition: background .2s;
+  }
+  .panel-close:hover { background: #e0e0e0; }
+
+  #list-container {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .empty-state {
+    text-align: center;
+    color: #999;
+    margin-top: 60px;
+    font-size: 14px;
+    line-height: 1.8;
+  }
+  .empty-state svg { opacity: .3; margin-bottom: 12px; }
+
+  .schedule-card {
+    background: #fff;
+    border-radius: 14px;
+    padding: 14px;
+    box-shadow: 0 1px 6px rgba(0,0,0,.08);
+    position: relative;
+    cursor: pointer;
+    transition: transform .15s, box-shadow .15s;
+    border-left: 4px solid transparent;
+  }
+  .schedule-card:active { transform: scale(.98); }
+  .schedule-card:hover { box-shadow: 0 3px 12px rgba(0,0,0,.12); }
+
+  .card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .card-cat-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 10px;
+    color: #fff;
+    flex-shrink: 0;
+  }
+  .card-delete {
+    width: 30px; height: 30px;
+    border: none;
+    background: #fee2e2;
+    border-radius: 50%;
+    color: #ef4444;
+    font-size: 15px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: background .2s;
+  }
+  .card-delete:hover { background: #fecaca; }
+
+  .card-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: #111;
+    margin: 6px 0 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .card-date {
+    font-size: 12px;
+    color: #888;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .card-memo {
+    font-size: 13px;
+    color: #555;
+    margin-top: 6px;
+    line-height: 1.5;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+
+  /* ─── TOAST ─── */
+  #toast {
+    position: fixed;
+    bottom: 110px; left: 50%; transform: translateX(-50%);
+    z-index: 500;
+    background: rgba(0,0,0,.85);
+    color: #fff;
+    padding: 10px 20px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity .3s;
+    white-space: nowrap;
+  }
+  #toast.show { opacity: 1; }
+
+  /* ─── LEAFLET OVERRIDES ─── */
+  .leaflet-control-zoom { border-radius: 10px !important; overflow: hidden; }
+  .leaflet-touch .leaflet-control-zoom-in,
+  .leaflet-touch .leaflet-control-zoom-out { font-size: 18px !important; }
+
+  /* Drawing canvas overlay */
+  #draw-canvas {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    cursor: crosshair;
+    touch-action: none;
+    display: none;
+  }
+  #draw-canvas.active { display: block; }
+</style>
+</head>
+<body>
+
+<!-- Map -->
+<div id="map"></div>
+
+<!-- Drawing canvas -->
+<canvas id="draw-canvas"></canvas>
+
+<!-- Top bar -->
+<div id="topbar">
+  <div class="app-logo">
+    <svg viewBox="0 0 28 28" fill="none">
+      <rect width="28" height="28" rx="8" fill="#16a34a"/>
+      <path d="M8 20 L10 12 L14 17 L18 9 L20 20 Z" fill="white" stroke="white" stroke-width=".5" stroke-linejoin="round"/>
+      <circle cx="14" cy="10" r="2" fill="#4ade80"/>
+    </svg>
+    <span class="app-title">FIELD PLANNER</span>
+  </div>
+  <button id="btn-list">
+    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+      <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+    </svg>
+    予定一覧
+  </button>
+</div>
+
+<!-- Draw mode banner -->
+<div id="draw-banner">✏️ 地図上を指でなぞってエリアを囲んでください</div>
+
+<!-- FAB area -->
+<div id="fab-area">
+  <button class="fab" id="btn-cancel">
+    <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+      <path d="M6 18L18 6M6 6l12 12"/>
+    </svg>
+    キャンセル
+  </button>
+  <button class="fab" id="btn-draw">
+    <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+      <path d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+    </svg>
+    エリアを描く
+  </button>
+  <button class="fab" id="btn-done">
+    <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+      <path d="M5 13l4 4L19 7"/>
+    </svg>
+    完了
+  </button>
+</div>
+
+<!-- Sheet backdrop -->
+<div id="sheet-backdrop"></div>
+
+<!-- Input bottom sheet -->
+<div id="input-sheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-title">📋 作業予定を登録</div>
+  <div class="sheet-body">
+    <span class="chip-label">作業種別</span>
+    <div class="chips" id="cat-chips"></div>
+
+    <div class="field">
+      <label for="f-title">タイトル <span style="color:#e44">*</span></label>
+      <input type="text" id="f-title" placeholder="例：南側法面の草刈り">
+    </div>
+    <div class="field">
+      <label for="f-date">予定日</label>
+      <input type="date" id="f-date">
+    </div>
+    <div class="field">
+      <label for="f-memo">メモ</label>
+      <textarea id="f-memo" placeholder="担当者・注意事項など"></textarea>
+    </div>
+    <button id="btn-save">保存する</button>
+  </div>
+</div>
+
+<!-- List backdrop -->
+<div id="list-backdrop"></div>
+
+<!-- List panel -->
+<div id="list-panel">
+  <div class="panel-header">
+    <h2>📋 予定一覧</h2>
+    <button class="panel-close" id="btn-panel-close">✕</button>
+  </div>
+  <div id="list-container">
+    <div class="empty-state">
+      <svg width="56" height="56" fill="none" viewBox="0 0 24 24" stroke="#888" stroke-width="1.5" display="block" style="margin:0 auto 12px">
+        <path d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/>
+      </svg>
+      まだ予定がありません<br>地図上でエリアを描いて<br>予定を追加しましょう
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script>
+// ────────────────────────────────────────────────
+// CATEGORIES
+// ────────────────────────────────────────────────
+const CATEGORIES = [
+  { id: 'grass',  label: '草刈り',   emoji: '🌿', color: '#16a34a', bg: '#dcfce7' },
+  { id: 'burn',   label: '野焼き',   emoji: '🔥', color: '#ea580c', bg: '#ffedd5' },
+  { id: 'river',  label: '川掃除',   emoji: '💧', color: '#0284c7', bg: '#e0f2fe' },
+  { id: 'forest', label: '山林管理', emoji: '🌲', color: '#065f46', bg: '#d1fae5' },
+  { id: 'farm',   label: '農業計画', emoji: '🌾', color: '#ca8a04', bg: '#fef9c3' },
+  { id: 'other',  label: 'その他',   emoji: '📌', color: '#7c3aed', bg: '#ede9fe' },
+];
+
+function getCat(id) { return CATEGORIES.find(c => c.id === id) || CATEGORIES[5]; }
+
+// ────────────────────────────────────────────────
+// STATE
+// ────────────────────────────────────────────────
+let schedules = JSON.parse(localStorage.getItem('fp_schedules') || '[]');
+let drawMode = false;
+let drawing = false;
+let rawPoints = [];      // pixel coords during draw
+let pendingLatLngs = []; // finalized latlng coords
+let selectedCat = CATEGORIES[0].id;
+let leafletLayers = {};  // id -> leaflet layer
+
+function save() {
+  localStorage.setItem('fp_schedules', JSON.stringify(schedules));
+}
+
+// ────────────────────────────────────────────────
+// MAP INIT
+// ────────────────────────────────────────────────
+const map = L.map('map', {
+  center: [35.6812, 139.7671],
+  zoom: 13,
+  zoomControl: false,
+  attributionControl: true,
+});
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+  maxZoom: 19,
+}).addTo(map);
+
+L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+// ────────────────────────────────────────────────
+// DRAW CANVAS SETUP
+// ────────────────────────────────────────────────
+const canvas = document.getElementById('draw-canvas');
+const ctx = canvas.getContext('2d');
+
+function resizeCanvas() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
+
+function clearCanvas() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+}
+
+function renderStroke() {
+  if (rawPoints.length < 2) return;
+  clearCanvas();
+  const cat = getCat(selectedCat);
+
+  // fill
+  ctx.beginPath();
+  ctx.moveTo(rawPoints[0].x, rawPoints[0].y);
+  rawPoints.forEach(p => ctx.lineTo(p.x, p.y));
+  ctx.closePath();
+  ctx.fillStyle = cat.color + '33';
+  ctx.fill();
+
+  // stroke
+  ctx.beginPath();
+  ctx.moveTo(rawPoints[0].x, rawPoints[0].y);
+  rawPoints.forEach(p => ctx.lineTo(p.x, p.y));
+  ctx.closePath();
+  ctx.strokeStyle = cat.color;
+  ctx.lineWidth = 3;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  ctx.setLineDash([8, 4]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // start dot
+  ctx.beginPath();
+  ctx.arc(rawPoints[0].x, rawPoints[0].y, 6, 0, Math.PI * 2);
+  ctx.fillStyle = cat.color;
+  ctx.fill();
+}
+
+function getCanvasPoint(e) {
+  const rect = canvas.getBoundingClientRect();
+  if (e.touches) {
+    return { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top };
+  }
+  return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+}
+
+canvas.addEventListener('pointerdown', (e) => {
+  if (!drawMode) return;
+  e.preventDefault();
+  drawing = true;
+  rawPoints = [];
+  const pt = getCanvasPoint(e);
+  rawPoints.push(pt);
+});
+
+canvas.addEventListener('pointermove', (e) => {
+  if (!drawing) return;
+  e.preventDefault();
+  const pt = getCanvasPoint(e);
+  const last = rawPoints[rawPoints.length - 1];
+  if (Math.hypot(pt.x - last.x, pt.y - last.y) > 4) {
+    rawPoints.push(pt);
+    renderStroke();
+  }
+});
+
+canvas.addEventListener('pointerup', (e) => {
+  if (!drawing) return;
+  drawing = false;
+  if (rawPoints.length > 5) {
+    // convert pixel points to LatLng
+    pendingLatLngs = rawPoints.map(p => {
+      return map.containerPointToLatLng(L.point(p.x, p.y));
+    });
+    // simplify
+    pendingLatLngs = simplify(pendingLatLngs);
+    renderStroke();
+    showToast('「完了」ボタンで予定を登録します', 2000);
+  } else {
+    clearCanvas();
+    rawPoints = [];
+    pendingLatLngs = [];
+  }
+});
+
+// Douglas-Peucker simplify (simple version)
+function simplify(latlngs, tolerance = 0.00005) {
+  if (latlngs.length <= 4) return latlngs;
+  function distToSeg(p, a, b) {
+    const dx = b.lng - a.lng, dy = b.lat - a.lat;
+    if (dx === 0 && dy === 0) return Math.hypot(p.lat - a.lat, p.lng - a.lng);
+    const t = Math.max(0, Math.min(1, ((p.lat - a.lat) * dy + (p.lng - a.lng) * dx) / (dx * dx + dy * dy)));
+    return Math.hypot(p.lat - (a.lat + t * dy), p.lng - (a.lng + t * dx));
+  }
+  function dp(pts, tol) {
+    if (pts.length <= 2) return pts;
+    let maxD = 0, idx = 0;
+    for (let i = 1; i < pts.length - 1; i++) {
+      const d = distToSeg(pts[i], pts[0], pts[pts.length - 1]);
+      if (d > maxD) { maxD = d; idx = i; }
+    }
+    if (maxD > tol) {
+      return [...dp(pts.slice(0, idx + 1), tol).slice(0, -1), ...dp(pts.slice(idx), tol)];
+    }
+    return [pts[0], pts[pts.length - 1]];
+  }
+  return dp(latlngs, tolerance);
+}
+
+// ────────────────────────────────────────────────
+// DRAW MODE TOGGLE
+// ────────────────────────────────────────────────
+const btnDraw = document.getElementById('btn-draw');
+const btnDone = document.getElementById('btn-done');
+const btnCancel = document.getElementById('btn-cancel');
+const drawBanner = document.getElementById('draw-banner');
+
+function enterDrawMode() {
+  drawMode = true;
+  rawPoints = [];
+  pendingLatLngs = [];
+  clearCanvas();
+  canvas.classList.add('active');
+  map.dragging.disable();
+  map.touchZoom.disable();
+  map.doubleClickZoom.disable();
+  btnDraw.style.display = 'none';
+  btnDone.style.display = 'flex';
+  btnCancel.style.display = 'flex';
+  drawBanner.classList.add('visible');
+  document.getElementById('btn-list').style.pointerEvents = 'none';
+  document.getElementById('btn-list').style.opacity = '.4';
+}
+
+function exitDrawMode() {
+  drawMode = false;
+  drawing = false;
+  rawPoints = [];
+  pendingLatLngs = [];
+  clearCanvas();
+  canvas.classList.remove('active');
+  map.dragging.enable();
+  map.touchZoom.enable();
+  map.doubleClickZoom.enable();
+  btnDraw.style.display = 'flex';
+  btnDone.style.display = 'none';
+  btnCancel.style.display = 'none';
+  drawBanner.classList.remove('visible');
+  document.getElementById('btn-list').style.pointerEvents = '';
+  document.getElementById('btn-list').style.opacity = '';
+}
+
+btnDraw.addEventListener('click', enterDrawMode);
+btnCancel.addEventListener('click', () => { exitDrawMode(); });
+btnDone.addEventListener('click', () => {
+  if (pendingLatLngs.length < 3) {
+    showToast('エリアが小さすぎます。もう一度なぞってください', 2500);
+    return;
+  }
+  exitDrawMode();
+  openInputSheet();
+});
+
+// ────────────────────────────────────────────────
+// CATEGORY CHIPS RENDER
+// ────────────────────────────────────────────────
+const chipsEl = document.getElementById('cat-chips');
+
+function renderChips() {
+  chipsEl.innerHTML = '';
+  CATEGORIES.forEach(cat => {
+    const el = document.createElement('div');
+    el.className = 'chip' + (cat.id === selectedCat ? ' selected' : '');
+    el.textContent = cat.emoji + ' ' + cat.label;
+    el.style.background = cat.bg;
+    el.style.color = cat.color;
+    el.addEventListener('click', () => {
+      selectedCat = cat.id;
+      renderChips();
+    });
+    chipsEl.appendChild(el);
+  });
+}
+renderChips();
+
+// ────────────────────────────────────────────────
+// INPUT SHEET
+// ────────────────────────────────────────────────
+const sheetBackdrop = document.getElementById('sheet-backdrop');
+const inputSheet = document.getElementById('input-sheet');
+
+function openInputSheet() {
+  selectedCat = CATEGORIES[0].id;
+  renderChips();
+  document.getElementById('f-title').value = '';
+  document.getElementById('f-date').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('f-memo').value = '';
+  sheetBackdrop.classList.add('visible');
+  inputSheet.classList.add('visible');
+  setTimeout(() => document.getElementById('f-title').focus(), 400);
+}
+
+function closeInputSheet() {
+  sheetBackdrop.classList.remove('visible');
+  inputSheet.classList.remove('visible');
+  pendingLatLngs = [];
+}
+
+sheetBackdrop.addEventListener('click', closeInputSheet);
+
+document.getElementById('btn-save').addEventListener('click', () => {
+  const title = document.getElementById('f-title').value.trim();
+  if (!title) {
+    document.getElementById('f-title').focus();
+    document.getElementById('f-title').style.borderColor = '#ef4444';
+    setTimeout(() => document.getElementById('f-title').style.borderColor = '', 1500);
+    showToast('タイトルを入力してください', 2000);
+    return;
+  }
+  const schedule = {
+    id: Date.now().toString(),
+    cat: selectedCat,
+    title,
+    date: document.getElementById('f-date').value,
+    memo: document.getElementById('f-memo').value.trim(),
+    latlngs: pendingLatLngs.map(ll => ({ lat: ll.lat, lng: ll.lng })),
+  };
+  schedules.unshift(schedule);
+  save();
+  addPolygonToMap(schedule);
+  renderList();
+  closeInputSheet();
+  showToast('✅ 予定を保存しました', 2000);
+});
+
+// ────────────────────────────────────────────────
+// POLYGON RENDERING
+// ────────────────────────────────────────────────
+function addPolygonToMap(s) {
+  const cat = getCat(s.cat);
+  const polygon = L.polygon(s.latlngs, {
+    color: cat.color,
+    fillColor: cat.color,
+    fillOpacity: 0.25,
+    weight: 2.5,
+  }).addTo(map);
+
+  polygon.bindTooltip(`<b>${cat.emoji} ${s.title}</b>${s.date ? '<br>' + formatDate(s.date) : ''}`, {
+    permanent: false,
+    direction: 'top',
+    className: 'fp-tooltip'
+  });
+
+  polygon.on('click', () => openListPanel());
+  leafletLayers[s.id] = polygon;
+}
+
+function removePolygonFromMap(id) {
+  if (leafletLayers[id]) {
+    map.removeLayer(leafletLayers[id]);
+    delete leafletLayers[id];
+  }
+}
+
+// Load existing schedules
+schedules.forEach(s => addPolygonToMap(s));
+
+// ────────────────────────────────────────────────
+// LIST PANEL
+// ────────────────────────────────────────────────
+const listPanel = document.getElementById('list-panel');
+const listBackdrop = document.getElementById('list-backdrop');
+const listContainer = document.getElementById('list-container');
+
+document.getElementById('btn-list').addEventListener('click', openListPanel);
+document.getElementById('btn-panel-close').addEventListener('click', closeListPanel);
+listBackdrop.addEventListener('click', closeListPanel);
+
+function openListPanel() {
+  renderList();
+  listPanel.classList.add('visible');
+  listBackdrop.classList.add('visible');
+}
+function closeListPanel() {
+  listPanel.classList.remove('visible');
+  listBackdrop.classList.remove('visible');
+}
+
+function formatDate(str) {
+  if (!str) return '';
+  const d = new Date(str + 'T00:00:00');
+  return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;
+}
+
+function renderList() {
+  listContainer.innerHTML = '';
+  if (schedules.length === 0) {
+    listContainer.innerHTML = `
+      <div class="empty-state">
+        <svg width="56" height="56" fill="none" viewBox="0 0 24 24" stroke="#888" stroke-width="1.5" display="block" style="margin:0 auto 12px">
+          <path d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/>
+        </svg>
+        まだ予定がありません<br>地図上でエリアを描いて<br>予定を追加しましょう
+      </div>`;
+    return;
+  }
+
+  // Sort by date
+  const sorted = [...schedules].sort((a, b) => {
+    if (!a.date && !b.date) return 0;
+    if (!a.date) return 1;
+    if (!b.date) return -1;
+    return a.date.localeCompare(b.date);
+  });
+
+  sorted.forEach(s => {
+    const cat = getCat(s.cat);
+    const card = document.createElement('div');
+    card.className = 'schedule-card';
+    card.style.borderLeftColor = cat.color;
+    card.innerHTML = `
+      <div class="card-header">
+        <div class="card-cat-badge" style="background:${cat.color}">${cat.emoji} ${cat.label}</div>
+        <button class="card-delete" data-id="${s.id}" title="削除">
+          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+            <path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+          </svg>
+        </button>
+      </div>
+      <div class="card-title">${escapeHtml(s.title)}</div>
+      ${s.date ? `<div class="card-date">📅 ${formatDate(s.date)}</div>` : ''}
+      ${s.memo ? `<div class="card-memo">${escapeHtml(s.memo)}</div>` : ''}
+    `;
+
+    // Jump to map
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('.card-delete')) return;
+      const layer = leafletLayers[s.id];
+      if (layer) {
+        closeListPanel();
+        map.fitBounds(layer.getBounds(), { padding: [40, 40] });
+        setTimeout(() => layer.openTooltip(), 400);
+      }
+    });
+
+    // Delete
+    card.querySelector('.card-delete').addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (!confirm(`「${s.title}」を削除しますか？`)) return;
+      removePolygonFromMap(s.id);
+      schedules = schedules.filter(x => x.id !== s.id);
+      save();
+      renderList();
+      showToast('🗑️ 予定を削除しました', 1800);
+    });
+
+    listContainer.appendChild(card);
+  });
+}
+
+// ────────────────────────────────────────────────
+// TOAST
+// ────────────────────────────────────────────────
+let toastTimer;
+const toastEl = document.getElementById('toast');
+
+function showToast(msg, duration = 2000) {
+  toastEl.textContent = msg;
+  toastEl.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove('show'), duration);
+}
+
+// ────────────────────────────────────────────────
+// UTIL
+// ────────────────────────────────────────────────
+function escapeHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// Initial render
+renderList();
+
+// Locate user on load (optional)
+if (navigator.geolocation) {
+  navigator.geolocation.getCurrentPosition(pos => {
+    map.setView([pos.coords.latitude, pos.coords.longitude], 15);
+  }, () => {});
+}
+</script>
+
+<style>
+/* Leaflet tooltip custom */
+.fp-tooltip {
+  background: rgba(0,0,0,.85) !important;
+  color: #fff !important;
+  border: none !important;
+  border-radius: 8px !important;
+  padding: 6px 10px !important;
+  font-size: 13px !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,.3) !important;
+}
+.fp-tooltip::before { display: none !important; }
+</style>
+</body>
+</html>
