@@ -1,40 +1,40 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+このファイルは、リポジトリで作業する Claude Code (claude.ai/code) へのガイダンスを提供します。
 
-## Overview
+## 概要
 
-**Field Planner (フィールドプランナー)** is a single-file Japanese web application for managing field work schedules on an interactive map. No build system or package manager is used.
+**フィールドプランナー** は、インタラクティブな地図上でフィールド作業の予定を管理するシングルファイルのWebアプリです。ビルドシステムやパッケージマネージャーは使用していません。
 
-## Running the Application
+## アプリの起動
 
-Open `index.html` directly in a browser — no server or build step required. All dependencies are loaded from CDN (Leaflet.js v1.9.4).
+`index.html` をブラウザで直接開くだけで動作します。サーバーやビルド手順は不要です。外部ライブラリはすべてCDN経由で読み込んでいます（Leaflet.js v1.9.4）。
 
-## Architecture
+## アーキテクチャ
 
-The entire application lives in `index.html` (~997 lines) with three co-located sections:
+アプリ全体が `index.html`（約997行）に収まっており、3つのセクションで構成されています。
 
-- **`<style>` (lines 9–431)**: All CSS, including responsive layout and Material-style components
-- **HTML markup (lines 433–532)**: Page structure — top bar, map container, FAB buttons, bottom sheet form, side panel
-- **`<script>` (lines 533–981)**: All application logic
+- **`<style>`（9〜431行）**: 全CSS。レスポンシブレイアウトとMaterialスタイルのコンポーネント
+- **HTMLマークアップ（433〜532行）**: ページ構造 — トップバー、マップコンテナ、FАBボタン、ボトムシートフォーム、サイドパネル
+- **`<script>`（533〜981行）**: 全アプリケーションロジック
 
-### JavaScript Structure (inside `<script>`)
+### JavaScriptの構成（`<script>` 内）
 
-| Concern | Description |
+| 関心事 | 説明 |
 |---|---|
-| Map initialization | Leaflet map centered on Tokyo (35.6812, 139.7671), zoom 13, OSM tiles |
-| Drawing system | Canvas overlay on map; freehand polygon drawing with Douglas-Peucker simplification |
-| Data layer | CRUD operations on `localStorage` key `fp_schedules`; each schedule has `{id, category, title, date, memo, polygon}` |
-| UI state | Imperative DOM manipulation; bottom sheet, side panel, toast notifications |
-| Geolocation | Optional — centers map on user location at startup |
+| 地図の初期化 | 東京中心（35.6812, 139.7671）、ズーム13、OSMタイルのLeafletマップ |
+| 描画システム | 地図上のCanvasオーバーレイ。フリーハンドのポリゴン描画＋Douglas-Peuckerによる簡略化 |
+| データ層 | `localStorage` のキー `fp_schedules` に対するCRUD。各スケジュールは `{id, category, title, date, memo, polygon}` |
+| UI状態管理 | 命令的なDOM操作。ボトムシート、サイドパネル、トースト通知 |
+| ジオロケーション | 任意。起動時にユーザーの現在地に地図を移動 |
 
-### Work Categories
+### 作業カテゴリ
 
-Six categories with fixed colors: 草刈り (green), 野焼き (orange), 川掃除 (blue), 山林管理 (dark green), 農業計画 (yellow), その他 (purple).
+6種類のカテゴリと固定色: 草刈り（緑）、野焼き（オレンジ）、川掃除（青）、山林管理（濃緑）、農業計画（黄）、その他（紫）
 
-## Key Implementation Notes
+## 実装上の注意
 
-- **No module system**: All code is global-scope vanilla JS. Variables and functions defined at top level of `<script>` are the full state and API.
-- **Polygon drawing**: Uses a `<canvas>` element layered over the Leaflet map. Mouse/touch events captured on canvas, projected to lat/lng via `map.containerPointToLatLng()`.
-- **Data persistence**: `localStorage` only — no backend, no sync. Clearing browser storage deletes all data.
-- **CDN dependencies**: Leaflet JS and CSS loaded from `unpkg.com`. No local copies.
+- **モジュールシステムなし**: 全コードはグローバルスコープのバニラJS。`<script>` トップレベルの変数・関数が状態とAPIのすべて。
+- **ポリゴン描画**: Leafletマップ上に重ねた `<canvas>` 要素を使用。マウス/タッチイベントをキャプチャし、`map.containerPointToLatLng()` で緯度経度に変換。
+- **データ永続化**: `localStorage` のみ。バックエンドや同期機能はなく、ブラウザのストレージを消去するとデータも消える。
+- **CDN依存**: Leaflet のJSとCSSは `unpkg.com` から読み込み。ローカルコピーなし。
