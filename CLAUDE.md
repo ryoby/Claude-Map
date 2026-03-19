@@ -38,3 +38,34 @@
 - **ポリゴン描画**: Leafletマップ上に重ねた `<canvas>` 要素を使用。マウス/タッチイベントをキャプチャし、`map.containerPointToLatLng()` で緯度経度に変換。
 - **データ永続化**: `localStorage` のみ。バックエンドや同期機能はなく、ブラウザのストレージを消去するとデータも消える。
 - **CDN依存**: Leaflet のJSとCSSは `unpkg.com` から読み込み。ローカルコピーなし。
+
+## リポジトリ構成
+
+```
+For-Claud-Map/
+├── index.html                      # アプリ本体（全コード）
+├── CLAUDE.md                       # このファイル
+├── plan.md                         # 開発計画・TODOリスト
+└── .claude/
+    ├── settings.json               # Claude Code フック設定
+    └── hooks/
+        └── session-start.sh        # セッション開始時にTODOを表示
+```
+
+## 開発の進め方
+
+### TODOの管理
+
+`plan.md` にフェーズ別のTODOリストがあります。セッション開始時に自動でフックが起動し、次の未完了タスクが表示されます。
+
+タスクが完了したら `plan.md` の `- [ ]` を `- [x]` に変更してください。次のセッションで自動的に次のタスクが表示されます。
+
+### Macでの動作確認
+
+```bash
+git clone https://github.com/ryoby/Claude-Map.git
+cd Claude-Map
+open index.html
+```
+
+ビルド不要。ブラウザで直接開くだけで動作します。
